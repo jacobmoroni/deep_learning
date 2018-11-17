@@ -96,6 +96,14 @@ def calculate_advantages(trajectories, value_net):
       advantage = exp[4] - value_net(torch.from_numpy(exp[0]).float().unsqueeze(0))[0,0]#missing something here
       trajectories[i][j] =(exp[0], exp[1], exp[2], exp[3], exp[4], advantage )
 
+
+def render_now():
+  for i in range(300):
+    env.render()
+    action = policy(torch.from_numpy(s).float().view(1,-1))
+    action_index = np.random.multinomial(1, action.detach().numpy().reshape((num_actions)))
+    action_index = np.argmax(action_index)
+    env.step(action_index)
 # env = gym.make('CartPole-v0')
 # states= 2
 # actions = 3
@@ -114,9 +122,9 @@ value_optim = optim.Adam(value.parameters(), lr=1e-3, weight_decay=1)
 value_criteria = nn.MSELoss()
 
 # Hyperparameters
-epochs = 30 #1000
+epochs = 300 #1000
 env_samples = 100
-episode_length = 200
+episode_length = 2000# 200
 gamma = 0.9
 value_epochs = 2
 policy_epochs = 5
@@ -138,17 +146,24 @@ for epoch in range(epochs):
     current_rollout = []
     s = env.reset()
     max_x = -10
+    min_x = 0
     for i in range(episode_length):
       action = policy(torch.from_numpy(s).float().view(1,-1))
       action_index = np.random.multinomial(1, action.detach().numpy().reshape((num_actions)))
       action_index = np.argmax(action_index)
       s_prime, r, t, _ = env.step(action_index)
-
+      if s_prime[0] > max_x:
+          max_x = s_prime[0]
+          r = 3
+      if s_prime[0] < min_x:
+          min_x = s_prime[0]
+          r = 1
+      if t:
+          r = 7000
       current_rollout.append((s, action.detach().reshape(-1), action_index, r))
       standing_length += 1
       # print (s_prime)
-      if s_prime[0] > max_x:
-          max_x = s_prime[0]
+
 
       if t:
         break
@@ -229,12 +244,6 @@ plt.plot(loss_list)
 plt.title("Loss over time")
 
 plt.show()
+render_now()
 
-def render_now():
-  for i in range(300):
-    env.render()
-    action = policy(torch.from_numpy(s).float().view(1,-1))
-    action_index = np.random.multinomial(1, action.detach().numpy().reshape((num_actions)))
-    action_index = np.argmax(action_index)
-    env.step(action_index)
 
