@@ -93,39 +93,52 @@ def calculate_returns(trajectories, gamma):
 def calculate_advantages(trajectories, value_net):
   for i, trajectory in enumerate(trajectories):
     for j, exp in enumerate(trajectory):
-      advantage = exp[4] - value_net(torch.from_numpy(exp[0]).float().unsqueeze(0))[0,0]#missing something here
+      advantage = exp[4] - value_net(torch.from_numpy(exp[0]).float().unsqueeze(0))[0,0].detach().numpy() 
+      #missing something here
       trajectories[i][j] =(exp[0], exp[1], exp[2], exp[3], exp[4], advantage )
 
 
 def render_now():
-  for i in range(300):
+
+  env.reset()
+  for i in range(1000):
+
     env.render()
     action = policy(torch.from_numpy(s).float().view(1,-1))
     action_index = np.random.multinomial(1, action.detach().numpy().reshape((num_actions)))
     action_index = np.argmax(action_index)
-    env.step(action_index)
+    _,_,end_now,_ =  env.step(action_index)
+    if end_now:
+        break
 # env = gym.make('CartPole-v0')
 # states= 2
 # actions = 3
 # policy = PolicyNetwork(4, 2)
 # value = ValueNetwork(4)
 
-env = gym.make('MountainCar-v0')
-num_states= 2
-num_actions = 3
+# env = gym.make('MountainCar-v0')
+# num_states= 2
+# num_actions = 3
+# policy = PolicyNetwork(num_states, num_actions)
+# value = ValueNetwork(num_states)
+
+env = gym.make('LunarLander-v2')
+num_states= 8
+num_actions = 4
 policy = PolicyNetwork(num_states, num_actions)
 value = ValueNetwork(num_states)
 
-
-policy_optim = optim.Adam(policy.parameters(), lr=1e-2, weight_decay=0.01)
+# policy_optim = optim.Adam(policy.parameters(), lr=1e-2, weight_decay=0.01)
+policy_optim = optim.Adam(policy.parameters(), lr=1e-4, weight_decay=0.01)
 value_optim = optim.Adam(value.parameters(), lr=1e-3, weight_decay=1)
 value_criteria = nn.MSELoss()
 
 # Hyperparameters
 epochs = 300 #1000
 env_samples = 100
-episode_length = 2000# 200
-gamma = 0.9
+episode_length = 4000 #200
+# gamma = 0.9
+gamma = 0.99
 value_epochs = 2
 policy_epochs = 5
 batch_size = 32
@@ -142,6 +155,7 @@ for epoch in range(epochs):
   rollouts = []
   standing_length = 0
   max_x_total = 0
+  avg_reward = 0
   for _ in range(env_samples):
     current_rollout = []
     s = env.reset()
@@ -152,14 +166,18 @@ for epoch in range(epochs):
       action_index = np.random.multinomial(1, action.detach().numpy().reshape((num_actions)))
       action_index = np.argmax(action_index)
       s_prime, r, t, _ = env.step(action_index)
-      if s_prime[0] > max_x:
-          max_x = s_prime[0]
-          r = 3
-      if s_prime[0] < min_x:
-          min_x = s_prime[0]
-          r = 1
-      if t:
-          r = 7000
+      # if s_prime[0] > max_x:
+          # if s_prime[0] > max_x+.01:
+            # r = 20
+          # max_x = s_prime[0]
+      # if s_prime[0] < min_x:
+        # if s_prime[0] < min_x - .01:
+          # r = 1
+        # min_x = s_prime[0]
+
+      # if t:
+          # r = i7000
+      avg_reward = avg_reward + r
       current_rollout.append((s, action.detach().reshape(-1), action_index, r))
       standing_length += 1
       # print (s_prime)
@@ -175,6 +193,7 @@ for epoch in range(epochs):
 #     print('avg standing time:', standing_length / env_samples)
   avg_max_x = max_x_total / env_samples
   avg_standing_time = standing_length / env_samples
+  avg_reward = avg_reward/env_samples
   standing_time_list.append(avg_standing_time)
   calculate_returns(rollouts, gamma)
 
@@ -205,7 +224,7 @@ for epoch in range(epochs):
     for state, probs, action_index, reward, ret, advantage in policy_loader:
       policy_optim.zero_grad()
       current_batch_size = reward.size()[0]
-      advantage = ret.float()
+      advantage = advantage.detach().float() #ret.float() #
       p = policy(state.float())
       ratio = p[range(current_batch_size), action_index] / probs[range(current_batch_size), action_index]#something else goes here]
 
@@ -231,7 +250,7 @@ for epoch in range(epochs):
  
 #   print('avg standing time:', standing_length / env_samples)
   # loop.set_description('epoch:{},loss:{:.4f},standing time:{:.5f}'.format(epoch,total_loss,avg_standing_time))
-  loop.set_description('epoch:{},loss:{:.4f},max_x:{:.5f}'.format(epoch,total_loss, avg_max_x))
+  loop.set_description('epoch:{},loss:{:.4f},avg_reward:{:.5f}'.format(epoch,total_loss, avg_reward))
   loop.update(1)
 
 loop.close()
