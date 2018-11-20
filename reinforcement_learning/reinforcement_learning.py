@@ -170,7 +170,7 @@ for epoch in range(epochs):
   rollouts = []
   standing_length = 0
   max_x_total = 0
-  avg_reward = 0
+  avg_reward = 1
   for _ in range(env_samples):
     current_rollout = []
     s = env.reset()
