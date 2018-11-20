@@ -105,11 +105,25 @@ def render_now():
 
     env.render()
     action = policy(torch.from_numpy(s).float().view(1,-1))
-    action_index = np.random.multinomial(1, action.detach().numpy().reshape((num_actions)))
-    action_index = np.argmax(action_index)
+    ac = action.detach().numpy().reshape((num_actions))
+    action_index = np.random.choice(range(num_actions), p=ac)
     _,_,end_now,_ =  env.step(action_index)
     if end_now:
         break
+
+def plot_results():
+  plt.figure()
+  plt.plot(reward_list)
+  plt.title("Average Reward over Time")
+  plt.xlabel("Time (epochs)")
+  plt.ylabel("Reward")
+
+  plt.figure()
+  plt.plot(loss_list)
+  plt.title("Loss over time")
+  plt.xlabel("Time (epochs)")
+  plt.ylabel("Loss")
+  plt.show()
 # env = gym.make('CartPole-v0')
 # states= 2
 # actions = 3
@@ -134,7 +148,7 @@ value_optim = optim.Adam(value.parameters(), lr=1e-3, weight_decay=1)
 value_criteria = nn.MSELoss()
 
 # Hyperparameters
-epochs = 300 #1000
+epochs = 200 #1000
 env_samples = 100
 episode_length = 4000 #200
 # gamma = 0.9
@@ -146,6 +160,7 @@ policy_batch_size = 256
 epsilon = 0.2
 standing_time_list = []
 loss_list = []
+reward_list = []
 
 loop = tqdm(total=epochs,position=0, leave=False)
 
@@ -163,8 +178,8 @@ for epoch in range(epochs):
     min_x = 0
     for i in range(episode_length):
       action = policy(torch.from_numpy(s).float().view(1,-1))
-      action_index = np.random.multinomial(1, action.detach().numpy().reshape((num_actions)))
-      action_index = np.argmax(action_index)
+      ac = action.detach().numpy().reshape((num_actions))
+      action_index = np.random.choice(range(num_actions), p=ac)
       s_prime, r, t, _ = env.step(action_index)
       # if s_prime[0] > max_x:
           # if s_prime[0] > max_x+.01:
@@ -195,6 +210,7 @@ for epoch in range(epochs):
   avg_standing_time = standing_length / env_samples
   avg_reward = avg_reward/env_samples
   standing_time_list.append(avg_standing_time)
+  reward_list.append(avg_reward)
   calculate_returns(rollouts, gamma)
 
   # Approximate the value function
@@ -237,13 +253,16 @@ for epoch in range(epochs):
 
   if (epoch % 50 == 0 & epoch != 0):
     plt.figure()
-    plt.plot(standing_time_list)
-    plt.title("Average Standing Time over Time")
+    plt.plot(reward_list)
+    plt.title("Average Reward over Time")
+    plt.xlabel("Time (epochs)")
+    plt.ylabel("Reward")
 
     plt.figure()
     plt.plot(loss_list)
     plt.title("Loss over time")
-
+    plt.xlabel("Time (epochs)")
+    plt.ylabel("Loss")
     plt.show()
 
 
@@ -252,17 +271,11 @@ for epoch in range(epochs):
   # loop.set_description('epoch:{},loss:{:.4f},standing time:{:.5f}'.format(epoch,total_loss,avg_standing_time))
   loop.set_description('epoch:{},loss:{:.4f},avg_reward:{:.5f}'.format(epoch,total_loss, avg_reward))
   loop.update(1)
+  if avg_reward > 200:
+      break
 
 loop.close()
-plt.figure()
-plt.plot(standing_time_list)
-plt.title("Average Standing Time over Time")
-
-plt.figure()
-plt.plot(loss_list)
-plt.title("Loss over time")
-
-plt.show()
+plot_results()
 render_now()
 
 
